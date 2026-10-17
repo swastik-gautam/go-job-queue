@@ -5,14 +5,20 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"github.com/swastik-gautam/go-job-queue/job"
+	"github.com/swastik-gautam/go-job-queue/producer"
 )
 
 type CreateJobRequest struct {
 	Type    string          `json:"type"`
 	Payload json.RawMessage `json:"payload"`
 }
+
+var Jobs chan<- job.Job
 
 func CreateJobHandler(c *gin.Context) {
 	var req CreateJobRequest
@@ -46,6 +52,15 @@ func CreateJobHandler(c *gin.Context) {
 		})
 		return
 	}
+
+	j := job.Job{
+		ID:        uuid.NewString(),
+		Type:      strings.TrimSpace(req.Type),
+		Payload:   payload,
+		CreatedAt: time.Now().UTC(),
+	}
+
+	producer.Enqueue(Jobs, j)
 
 	c.JSON(http.StatusAccepted, gin.H{
 		"message": "request accepted",

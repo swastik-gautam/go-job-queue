@@ -1,26 +1,23 @@
 package worker
 
 import (
-	"fmt"
-	"sync"
+	"log"
+	"time"
 
 	"github.com/swastik-gautam/go-job-queue/job"
 )
 
 func Start(jobs <-chan job.Job, workerCount int) {
-	var wg sync.WaitGroup
 
 	for i := 1; i <= workerCount; i++ {
-		wg.Add(1)
-
 		go func(workerID int) {
-			defer wg.Done()
-
 			for j := range jobs {
-				fmt.Printf("Worker %d processing job %s\n", workerID, j.ID)
+				log.Printf("Worker %d started job %s", workerID, j.ID)
+
+				time.Sleep(500 * time.Millisecond)
+
+				log.Printf("Worker %d Finished job %s OF (type: %s)", workerID, j.ID, j.Type)
 			}
 		}(i)
 	}
-
-	wg.Wait()
 }
