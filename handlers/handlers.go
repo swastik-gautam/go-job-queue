@@ -66,7 +66,13 @@ func (h *Handler) CreateJob(c *gin.Context) {
 		CreatedAt: time.Now().UTC(),
 	}
 
-	producer.Enqueue(h.jobs, j)
+	if err := producer.Enqueue(h.jobs, j); err != nil {
+		c.Header("Retry-After", "5")
+		c.JSON(http.StatusTooManyRequests, gin.H{
+			"error": "queue is full, try again latter",
+		})
+		return
+	}
 
 	c.JSON(http.StatusAccepted, gin.H{
 		"message": "request accepted",
