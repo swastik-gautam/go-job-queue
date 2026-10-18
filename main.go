@@ -12,9 +12,9 @@ func main() {
 
 	worker.Start(jobs, 3)
 
-	handlers.Jobs = jobs
+	h := handlers.New(jobs)
 
 	r := gin.Default()
-	r.POST("/jobs", handlers.CreateJobHandler)
+	r.POST("/jobs", h.CreateJob)
 	r.Run(":8080")
 }

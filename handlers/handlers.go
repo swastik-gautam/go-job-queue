@@ -18,9 +18,15 @@ type CreateJobRequest struct {
 	Payload json.RawMessage `json:"payload"`
 }
 
-var Jobs chan<- job.Job
+type Handler struct {
+	jobs chan<- job.Job
+}
 
-func CreateJobHandler(c *gin.Context) {
+func New(ch chan<- job.Job) *Handler {
+	return &Handler{jobs: ch}
+}
+
+func (h *Handler) CreateJob(c *gin.Context) {
 	var req CreateJobRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -60,10 +66,10 @@ func CreateJobHandler(c *gin.Context) {
 		CreatedAt: time.Now().UTC(),
 	}
 
-	producer.Enqueue(Jobs, j)
+	producer.Enqueue(h.jobs, j)
 
 	c.JSON(http.StatusAccepted, gin.H{
 		"message": "request accepted",
+		"id":      j.ID,
 	})
-
 }

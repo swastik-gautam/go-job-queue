@@ -1,7 +1,4 @@
-job-queue
-job-queue
+/go-job-queue
+/job-queue
+/bin/
 *.exe
-bin/
-job-queue
-*.exe
-bin/
