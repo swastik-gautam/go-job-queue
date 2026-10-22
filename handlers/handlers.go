@@ -59,11 +59,18 @@ func (h *Handler) CreateJob(c *gin.Context) {
 		return
 	}
 
+	now := time.Now().UTC()
+
 	j := job.Job{
-		ID:        uuid.NewString(),
-		Type:      strings.TrimSpace(req.Type),
-		Payload:   payload,
-		CreatedAt: time.Now().UTC(),
+		ID:          uuid.NewString(),
+		Type:        strings.TrimSpace(req.Type),
+		Payload:     payload,
+		Status:      job.StatusPending,
+		Priority:    0,
+		RunAt:       now,
+		MaxAttempts: 3,
+		Timeout:     30 * time.Second,
+		CreatedAt:   time.Now().UTC(),
 	}
 
 	if err := producer.Enqueue(h.jobs, j); err != nil {
