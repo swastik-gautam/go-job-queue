@@ -9,12 +9,12 @@ import (
 
 type Store struct {
 	mu   sync.RWMutex
-	jobs map[string]job
+	jobs map[string]job.Job
 }
 
 func NewStore() *Store {
 	return &Store{
-		jobs: make(map[string]job),
+		jobs: make(map[string]job.Job),
 	}
 }
 
@@ -30,13 +30,13 @@ func (s *Store) SetState(id string, state job.Status) error {
 	defer s.mu.Unlock()
 
 	//find the existing job
-	j, ok := s.job[id]
+	j, ok := s.jobs[id]
 	if !ok {
 		return errors.New("job not found")
 	}
 
 	//update its state
-	j.State = state
+	j.Status = state
 	s.jobs[id] = j
 
 	return nil
