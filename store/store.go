@@ -25,6 +25,8 @@ func (s *Store) Add(j job.Job) {
 	s.jobs[j.ID] = j
 }
 
+var ErrJobNotFound = errors.New("job not found")
+
 func (s *Store) SetState(id string, state job.Status) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -32,7 +34,7 @@ func (s *Store) SetState(id string, state job.Status) error {
 	//find the existing job
 	j, ok := s.jobs[id]
 	if !ok {
-		return errors.New("job not found")
+		return ErrJobNotFound
 	}
 
 	//update its state
@@ -48,7 +50,7 @@ func (s *Store) Get(id string) (job.Job, error) {
 
 	j, ok := s.jobs[id]
 	if !ok {
-		return job.Job{}, errors.New("job not found")
+		return job.Job{}, ErrJobNotFound
 	}
 
 	return j, nil

@@ -3,6 +3,7 @@ package handlers
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/swastik-gautam/go-job-queue/job"
 	"github.com/swastik-gautam/go-job-queue/producer"
+	"github.com/swastik-gautam/go-job-queue/store"
 )
 
 type CreateJobRequest struct {
@@ -19,11 +21,15 @@ type CreateJobRequest struct {
 }
 
 type Handler struct {
-	jobs chan<- job.Job
+	jobs  chan<- job.Job
+	store *store.Store
 }
 
-func New(ch chan<- job.Job) *Handler {
-	return &Handler{jobs: ch}
+func New(ch chan<- job.Job, s *store.Store) *Handler {
+	return &Handler{
+		jobs:  ch,
+		store: s,
+	}
 }
 
 func (h *Handler) CreateJob(c *gin.Context) {
@@ -81,8 +87,31 @@ func (h *Handler) CreateJob(c *gin.Context) {
 		return
 	}
 
+	h.store.Add(j)
+
 	c.JSON(http.StatusAccepted, gin.H{
 		"message": "request accepted",
 		"id":      j.ID,
 	})
+}
+
+func (h *Handler) GetJob(c *gin.Context) {
+	id := c.Param("id")
+
+	j, err := h.store.Get(id)
+	if err != nil {
+		if errors.Is(err, store.ErrJobNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": err.Error(),
+			})
+			return
+		}
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "internal server error",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, j)
 }
