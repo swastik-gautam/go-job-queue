@@ -18,3 +18,5 @@ func resizePhoto(ctx context.Context, j job.Job) error {
 		return ctx.Err()
 	}
 }
+
+

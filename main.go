@@ -13,6 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/swastik-gautam/go-job-queue/api"
+	"github.com/swastik-gautam/go-job-queue/handlers"
 	"github.com/swastik-gautam/go-job-queue/job"
 	"github.com/swastik-gautam/go-job-queue/store"
 	"github.com/swastik-gautam/go-job-queue/worker"
@@ -23,7 +24,13 @@ func main() {
 	jobStore := store.NewStore()
 
 	var wg sync.WaitGroup
-	worker.Start(jobs, 3, &wg, jobStore)
+
+	registry := handlers.NewRegistry()
+	handlers.RegisterAll(registry)
+
+	w := worker.New(jobStore, registry)
+
+	worker.Start(jobs, 3, &wg, w)
 
 	h := api.New(jobs, jobStore)
 	r := gin.Default()
