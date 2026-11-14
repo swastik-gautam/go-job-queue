@@ -36,21 +36,24 @@ func (s *Scheduler) Ready() <-chan job.Job {
 func (s *Scheduler) run() {
 	timer := time.NewTimer(time.Hour)
 	timer.Stop()
-	defer timer.Stop()
 
 	var timerC <-chan time.Time
 	var pending *job.Job
 
 	for {
-		// Check the earliest job and configure timer
+		// Check whether we need to schedule a timer.
 		if pending == nil && s.jobs.Len() > 0 {
-			next := (*s.jobs)[0].RunAt
-			delay := time.Until(next)
+			// Get the earliest job without removing it.
+			next := (*s.jobs)[0]
+
+			// Calculate how long until the job should run.
+			delay := time.Until(next.RunAt)
 
 			if delay < 0 {
 				delay = 0
 			}
 
+			// Stop the previous timer and clean up if necessary.
 			if !timer.Stop() {
 				select {
 				case <-timer.C:
@@ -58,31 +61,37 @@ func (s *Scheduler) run() {
 				}
 			}
 
+			// Start the timer for the next job.
 			timer.Reset(delay)
 			timerC = timer.C
 		} else {
+			// Disable the timer case when no timer is needed.
 			timerC = nil
 		}
 
-		// Prepare job delivery
-		var readyC chan job.Job
+		// Prepare the ready channel.
+		readyC := s.ready
 		var readyJob job.Job
 
 		if pending != nil {
-			readyC = s.ready
 			readyJob = *pending
+		} else {
+			readyC = nil
 		}
 
-		// Wait for an event
+		// Wait for an event.
 		select {
 		case j := <-s.incoming:
+			// Add the new job to the min heap.
 			heap.Push(s.jobs, j)
 
 		case <-timerC:
+			// The earliest job's delay has expired.
 			j := heap.Pop(s.jobs).(job.Job)
 			pending = &j
 
 		case readyC <- readyJob:
+			// Successfully sent the job.
 			pending = nil
 		}
 	}
