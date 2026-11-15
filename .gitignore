@@ -2,3 +2,4 @@
 /job-queue
 /bin/
 *.exe
+.env
