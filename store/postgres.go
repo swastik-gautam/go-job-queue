@@ -12,14 +12,14 @@ type PostgresStore struct {
 }
 
 func NewPostgresStore(ctx context.Context, connString string) (*PostgresStore, error) {
-	db, error := pgxpool.New(ctx, connString)
+	db, err := pgxpool.New(ctx, connString)
 	if err != nil {
-		return nil, fmt.Errorf("Create Postgres Pool: %w", error)
+		return nil, fmt.Errorf("create postgres pool: %w", err)
 	}
 
 	if err := db.Ping(ctx); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("Ping Postgres: %w", err)
+		return nil, fmt.Errorf("ping postgres: %w", err)
 	}
 
 	return &PostgresStore{
