@@ -84,8 +84,6 @@ func (s *PostgresStore) AddJob(ctx context.Context, j job.Job) error {
 		return fmt.Errorf("insert job: %w", err)
 	}
 
-	return nil
-
 	if err != nil {
 		fmt.Errorf("insert jobs %w", err)
 	}
