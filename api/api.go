@@ -3,61 +3,66 @@ package api
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+
 	"github.com/swastik-gautam/go-job-queue/job"
-	"github.com/swastik-gautam/go-job-queue/producer"
 	"github.com/swastik-gautam/go-job-queue/store"
 )
 
+// CreateJobRequest represents the JSON received from the client.
 type CreateJobRequest struct {
 	Type    string          `json:"type"`
 	Payload json.RawMessage `json:"payload"`
 }
 
+// Handler handles incoming API requests.
 type Handler struct {
-	jobs  chan<- job.Job
-	store *store.Store
+	store *store.PostgresStore
 }
 
-func New(ch chan<- job.Job, s *store.Store) *Handler {
+// New creates a new API handler.
+func New(s *store.PostgresStore) *Handler {
 	return &Handler{
-		jobs:  ch,
 		store: s,
 	}
 }
 
+// CreateJob validates the request and saves a new job in PostgreSQL.
 func (h *Handler) CreateJob(c *gin.Context) {
 	var req CreateJobRequest
 
+	// Parse the incoming JSON request.
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": " invalid request",
+			"error": "invalid request",
 		})
 		return
 	}
 
+	// Validate the job payload.
 	payload := bytes.TrimSpace(req.Payload)
 
 	if len(payload) == 0 || !json.Valid(payload) {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "payload must be valid",
+			"error": "payload must be valid JSON",
 		})
 		return
 	}
 
-	if bytes.Equal(payload, []byte("null")) || payload[0] != '{' {
+	// Only JSON objects are accepted as job payloads.
+	if payload[0] != '{' {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "payload must be valid json object",
+			"error": "payload must be a valid JSON object",
 		})
 		return
 	}
 
+	// Validate the job type.
 	if strings.TrimSpace(req.Type) == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "type is required",
@@ -65,6 +70,7 @@ func (h *Handler) CreateJob(c *gin.Context) {
 		return
 	}
 
+	// Create a new job with its default values.
 	now := time.Now().UTC()
 
 	j := job.Job{
@@ -76,42 +82,21 @@ func (h *Handler) CreateJob(c *gin.Context) {
 		RunAt:       now,
 		MaxAttempts: 3,
 		Timeout:     30 * time.Second,
-		CreatedAt:   time.Now().UTC(),
+		CreatedAt:   now,
 	}
 
-	if err := producer.Enqueue(h.jobs, j); err != nil {
-		c.Header("Retry-After", "5")
-		c.JSON(http.StatusTooManyRequests, gin.H{
-			"error": "queue is full, try again latter",
+	// Save the job in PostgreSQL.
+	err := h.store.AddJob(c.Request.Context(), j)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed to persist job",
 		})
 		return
 	}
 
-	h.store.Add(j)
-
+	// Return the job ID after successful persistence.
 	c.JSON(http.StatusAccepted, gin.H{
-		"message": "request accepted",
+		"message": "job accepted",
 		"id":      j.ID,
 	})
-}
-
-func (h *Handler) GetJob(c *gin.Context) {
-	id := c.Param("id")
-
-	j, err := h.store.Get(id)
-	if err != nil {
-		if errors.Is(err, store.ErrJobNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": err.Error(),
-			})
-			return
-		}
-
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "internal server error",
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, j)
 }

@@ -21,9 +21,27 @@ import (
 )
 
 func main() {
-	// Shared channel used by all workers.
+	// Initialize PostgreSQL connection.
+	connString := os.Getenv("DATABASE_URL")
+	if connString == "" {
+		log.Fatal("DATABASE_URL environment variable is not set")
+	}
+
+	pgStore, err := store.NewPostgresStore(
+		context.Background(),
+		connString,
+	)
+	if err != nil {
+		log.Fatalf("failed to connect to PostgreSQL: %v", err)
+	}
+	defer pgStore.Close()
+
+	log.Println("connected to PostgreSQL")
+
+	// Shared channel used by the existing workers.
 	jobs := make(chan job.Job, 100)
 
+	// In-memory store used by the existing worker implementation.
 	jobStore := store.NewStore()
 
 	var wg sync.WaitGroup
@@ -32,30 +50,28 @@ func main() {
 	registry := handlers.NewRegistry()
 	handlers.RegisterAll(registry)
 
-	// Create worker.
+	// Create and start workers.
 	w := worker.New(jobStore, registry)
-
-	// Start three workers.
 	worker.Start(jobs, 3, &wg, w)
 
 	// Create and start delay scheduler.
 	delayScheduler := scheduler.NewScheduler()
 	delayScheduler.Start()
 
-	// Forward expired jobs to the worker pool.
+	// Forward scheduled jobs to the worker pool.
 	go func() {
 		for j := range delayScheduler.Ready() {
 			jobs <- j
 		}
 	}()
 
-	// Setup HTTP API.
-	h := api.New(jobs, jobStore)
+	// Setup HTTP API using PostgreSQL.
+	h := api.New(pgStore)
 
 	r := gin.Default()
 	r.POST("/jobs", h.CreateJob)
-	r.GET("/jobs/:id", h.GetJob)
 
+	// Setup HTTP server.
 	srv := &http.Server{
 		Addr:    ":8080",
 		Handler: r,
@@ -68,6 +84,8 @@ func main() {
 			log.Fatalf("server error: %v", err)
 		}
 	}()
+
+	log.Println("API server listening on :8080")
 
 	// Wait for shutdown signal.
 	ctx, stop := signal.NotifyContext(
